@@ -80,7 +80,7 @@ class Interface(object):
         >>> central = Interface('http://central.xnat.org', anonymous=True)
     """
 
-    def __init__(self, server=None, user=None, password=None, config=None,
+    def __init__(self, server=None, user=None, password=None, jsessionid=None, config=None,
                  anonymous=False, proxy=None, verify=None):
         """
             Parameters
@@ -123,6 +123,8 @@ class Interface(object):
         self._interactive = False
         self._anonymous = anonymous
         self._verify = verify
+        self._user = None
+        self._pwd = None
 
         if self._anonymous:
 
@@ -140,7 +142,7 @@ class Interface(object):
 
         else:
 
-            if not all([server, user, password]) and not config:
+            if (not all([server, user, password]) or not jsessionid) and not config:
                 self._interactive = True
 
             if all(arg is None
@@ -165,7 +167,7 @@ class Interface(object):
             elif config is not None:
                 self.load_config(config)
 
-            else:
+            elif not jsessionid:
                 if server is None:
                     self._server = input('Server: ')
                 else:
@@ -181,12 +183,15 @@ class Interface(object):
                 self._pwd = password
 
                 self.__set_proxy(proxy)
+            else:
+                self.__set_proxy(proxy)
+                self._server = server
 
         self._callback = None
 
         self._struct = {}
         self._entry = None
-        self._jsession = None  # 'authentication_by_credentials'
+        self._jsession = 'JSESSIONID=' + str(jsessionid) if jsessionid else None  # 'authentication_by_credentials'
         self._connect_extras = {}
         self._connect()
 
@@ -278,8 +283,10 @@ class Interface(object):
         if self._verify is not None:
             self._http.verify = self._verify
 
-        if not self._anonymous:
+        if not self._anonymous and self._user and self._pwd:
             self._http.auth = (self._user, self._pwd)
+        elif self._jsession:
+            self._http.cookies.set('JSESSIONID', self._jsession.split('=')[1])
 
         if self._proxy_url:
             self._http.proxies = {'http': self._proxy_url.geturl()}
